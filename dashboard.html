@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MIS Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #08080f; --sidebar: #0b0b18; --card: #0f0f1e; --card2: #0a0a15;
+    --border: #1e1e3a; --accent: #4f8ef7; --accent2: #7c3aed;
+    --green: #2ecc71; --red: #e74c3c; --yellow: #f39c12; --purple: #7c3aed;
+    --text: #e8eaf6; --sub: #6b7280; --font: 'Space Grotesk', sans-serif;
+  }
+  body { background: var(--bg); font-family: var(--font); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ── Top Nav ── */
+  nav {
+    background: var(--sidebar);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+  .nav-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .nav-right { display: flex; align-items: center; gap: 12px; }
+  .badge { background: rgba(79,142,247,.15); color: var(--accent); border: 1px solid rgba(79,142,247,.25); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; }
+  .badge.admin { background: rgba(124,58,237,.15); color: #a78bfa; border-color: rgba(124,58,237,.25); }
+  .nav-btn { background: transparent; border: 1px solid var(--border); color: var(--sub); border-radius: 8px; padding: 7px 14px; font-family: var(--font); font-size: 13px; cursor: pointer; transition: all .2s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+  .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-btn.admin-btn { border-color: rgba(124,58,237,.4); color: #a78bfa; }
+  .nav-btn.admin-btn:hover { background: rgba(124,58,237,.1); }
+
+  /* ── Main ── */
+  main { flex: 1; padding: 32px 24px; max-width: 860px; margin: 0 auto; width: 100%; }
+
+  h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .page-sub { color: var(--sub); font-size: 14px; margin-bottom: 32px; }
+
+  /* ── Steps ── */
+  .steps { display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap; }
+  .step { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sub); }
+  .step.active .step-num { background: var(--accent); color: #fff; }
+  .step.done   .step-num { background: var(--green);  color: #fff; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; transition: all .3s; }
+  .step-arrow { color: var(--border); font-size: 12px; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 20px;
+    transition: border-color .3s;
+  }
+  .card.active { border-color: rgba(79,142,247,.3); }
+  .card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card-title .num { width: 26px; height: 26px; background: linear-gradient(135deg,var(--accent2),var(--accent)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+
+  /* ── Upload zone ── */
+  #drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    position: relative;
+  }
+  #drop-zone:hover, #drop-zone.dragging { border-color: var(--accent); background: rgba(79,142,247,.04); }
+  #drop-zone .dz-icon { font-size: 36px; margin-bottom: 12px; }
+  #drop-zone .dz-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  #drop-zone .dz-sub   { font-size: 13px; color: var(--sub); }
+  #file-input { display: none; }
+  .file-chosen { background: rgba(46,204,113,.08); border-color: rgba(46,204,113,.3) !important; }
+  .file-chosen .dz-icon::after { content: ' ✅'; }
+
+  /* ── Column list ── */
+  #col-list { display: flex; flex-direction: column; gap: 10px; }
+  .col-row {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    animation: fadeIn .3s ease both;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .col-row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .col-name { flex: 1; font-size: 14px; font-weight: 500; min-width: 120px; }
+  .seg-group { display: flex; gap: 4px; flex-wrap: wrap; }
+  .seg-btn {
+    background: var(--border); color: var(--sub);
+    border: 1px solid transparent; border-radius: 7px;
+    padding: 5px 11px; font-family: var(--font); font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .seg-btn.active { background: var(--accent); color: #fff; }
+  .seg-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    background: linear-gradient(135deg,var(--accent2),var(--accent));
+    color: #fff; border: none; border-radius: 10px;
+    padding: 13px 28px; font-family: var(--font); font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: opacity .2s, transform .15s; display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-primary:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-download {
+    background: linear-gradient(135deg,#1a4a2e,var(--green));
+    color: #fff; border: none; border-radius: 10px;
+    padding: 13px 28px; font-family: var(--font); font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: opacity .2s; display: inline-flex; align-items: center; gap: 8px;
+    text-decoration: none;
+  }
+  .btn-download:hover { opacity: .9; }
+
+  /* ── Status ── */
+  .status-bar {
+    background: var(--card2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 13px; color: var(--sub);
+    display: flex; align-items: center; gap: 8px;
+    min-height: 48px;
+  }
+  .status-bar.success { border-color: rgba(46,204,113,.3); color: var(--green); background: rgba(46,204,113,.06); }
+  .status-bar.error   { border-color: rgba(231,76,60,.3);  color: var(--red);   background: rgba(231,76,60,.06); }
+  .status-bar.loading { border-color: rgba(79,142,247,.3); color: var(--accent); }
+
+  /* Loading spinner */
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(79,142,247,.2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hidden { display: none !important; }
+
+  /* ── Flash ── */
+  .flash { background: rgba(243,156,18,.1); border: 1px solid rgba(243,156,18,.3); border-radius: 10px; padding: 12px 16px; font-size: 13px; color: var(--yellow); margin-bottom: 20px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    main { padding: 20px 16px; }
+    .card { padding: 20px 16px; }
+    nav { padding: 0 16px; }
+    .col-row { flex-direction: column; align-items: flex-start; }
+    nav .nav-brand span { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <div class="nav-icon">⚡</div>
+    <span>MIS Automation</span>
+  </div>
+  <div class="nav-right">
+    <span class="badge {% if role == 'admin' %}admin{% endif %}">{{ username }}</span>
+    {% if role == 'admin' %}
+    <a href="/admin" class="nav-btn admin-btn">🛡 Admin</a>
+    {% endif %}
+    <a href="/logout" class="nav-btn">Sign Out</a>
+  </div>
+</nav>
+
+<main>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for msg in messages %}<div class="flash">⚠ {{ msg }}</div>{% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <h1>Excel Currency Formatter</h1>
+  <p class="page-sub">Upload your Excel file, choose formatting options, and download the updated file.</p>
+
+  <div class="steps">
+    <div class="step active" id="s1"><div class="step-num">1</div> Upload File</div>
+    <div class="step-arrow">›</div>
+    <div class="step" id="s2"><div class="step-num">2</div> Select Columns</div>
+    <div class="step-arrow">›</div>
+    <div class="step" id="s3"><div class="step-num">3</div> Process</div>
+    <div class="step-arrow">›</div>
+    <div class="step" id="s4"><div class="step-num">4</div> Download</div>
+  </div>
+
+  <!-- Step 1: Upload -->
+  <div class="card active" id="card-upload">
+    <div class="card-title"><div class="num">1</div> Upload Excel File</div>
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div class="dz-icon">📊</div>
+      <div class="dz-title" id="dz-title">Drop your Excel file here</div>
+      <div class="dz-sub" id="dz-sub">or click to browse &nbsp;·&nbsp; .xlsx / .xls supported</div>
+    </div>
+    <input type="file" id="file-input" accept=".xlsx,.xls">
+    <div style="margin-top:16px">
+      <div class="status-bar" id="upload-status">Waiting for file…</div>
+    </div>
+  </div>
+
+  <!-- Step 2: Columns -->
+  <div class="card hidden" id="card-cols">
+    <div class="card-title"><div class="num">2</div> Select Columns &amp; Formatting Mode</div>
+    <div id="col-list"></div>
+    <div style="margin-top: 20px; display:flex; gap:12px; flex-wrap:wrap;">
+      <button class="btn-primary" id="process-btn" onclick="processFile()">▶ Process File</button>
+    </div>
+  </div>
+
+  <!-- Step 3/4: Result -->
+  <div class="card hidden" id="card-result">
+    <div class="card-title"><div class="num" id="result-num">3</div> <span id="result-title">Processing…</span></div>
+    <div class="status-bar loading" id="result-status">
+      <div class="spinner"></div> Processing your file, please wait…
+    </div>
+    <div class="hidden" id="download-wrap" style="margin-top:16px">
+      <a href="/download" class="btn-download">⬇ Download Processed File</a>
+    </div>
+  </div>
+</main>
+
+<script>
+const MODES = [
+  { key: "commas", label: "1 · Indian Commas" },
+  { key: "words",  label: "2 · New Words Col" },
+  { key: "fill",   label: "3 · Fill Existing" }
+];
+
+let uploadedFile = null;
+let detectedCols = [];
+
+// ── Drag & Drop ──────────────────────────────────────────────
+const dz = document.getElementById('drop-zone');
+const fi = document.getElementById('file-input');
+
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragging'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragging'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('dragging');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fi.addEventListener('change', () => { if (fi.files[0]) handleFile(fi.files[0]); });
+
+function handleFile(file) {
+  if (!file.name.match(/\.(xlsx|xls)$/i)) {
+    setStatus('upload-status', '❌ Please upload a .xlsx or .xls file.', 'error'); return;
+  }
+  uploadedFile = file;
+  document.getElementById('dz-title').textContent = file.name;
+  document.getElementById('dz-sub').textContent   = (file.size/1024).toFixed(1)+' KB';
+  dz.classList.add('file-chosen');
+  setStatus('upload-status', '⏳ Detecting amount columns…', 'loading');
+  stepActive(1);
+  uploadAndDetect(file);
+}
+
+function uploadAndDetect(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  fetch('/detect-columns', { method:'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { setStatus('upload-status', '❌ '+data.error, 'error'); return; }
+      detectedCols = data.columns;
+      if (!detectedCols.length) {
+        setStatus('upload-status', '⚠️ No amount columns detected in this file.', 'error'); return;
+      }
+      setStatus('upload-status', `✅ ${detectedCols.length} amount column(s) detected. Select formatting options below.`, 'success');
+      renderColumns(detectedCols);
+      document.getElementById('card-cols').classList.remove('hidden');
+      stepDone(1); stepActive(2);
+    })
+    .catch(() => setStatus('upload-status', '❌ Upload failed. Please try again.', 'error'));
+}
+
+function renderColumns(cols) {
+  const list = document.getElementById('col-list');
+  list.innerHTML = '';
+  cols.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'col-row';
+    row.innerHTML = `
+      <input type="checkbox" id="chk${i}" checked>
+      <label class="col-name" for="chk${i}">${c.name}</label>
+      <div class="seg-group" id="seg${i}">
+        ${MODES.map((m,j) => `<button class="seg-btn${j===0?' active':''}" data-key="${m.key}" onclick="setMode(${i},this)">${m.label}</button>`).join('')}
+      </div>`;
+    list.appendChild(row);
+  });
+}
+
+function setMode(i, btn) {
+  document.querySelectorAll(`#seg${i} .seg-btn`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function processFile() {
+  const rules = {};
+  detectedCols.forEach((c, i) => {
+    const chk = document.getElementById(`chk${i}`);
+    if (!chk.checked) return;
+    const active = document.querySelector(`#seg${i} .seg-btn.active`);
+    rules[c.name.toLowerCase()] = [active ? active.dataset.key : 'commas', c.name];
+  });
+  if (!Object.keys(rules).length) { alert('Please select at least one column.'); return; }
+
+  document.getElementById('card-result').classList.remove('hidden');
+  setStatus('result-status', '<div class="spinner"></div> Processing your file…', 'loading');
+  document.getElementById('result-status').innerHTML = '<div class="spinner"></div> Processing your file, please wait…';
+  document.getElementById('download-wrap').classList.add('hidden');
+  document.getElementById('result-num').textContent   = '3';
+  document.getElementById('result-title').textContent = 'Processing…';
+  document.getElementById('process-btn').disabled = true;
+  stepDone(2); stepActive(3);
+
+  fetch('/process', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({rules})
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      document.getElementById('result-status').textContent = '❌ ' + data.error;
+      document.getElementById('result-status').className = 'status-bar error';
+      document.getElementById('process-btn').disabled = false;
+      return;
+    }
+    document.getElementById('result-status').textContent = `✅ Done! "${data.filename}" is ready to download.`;
+    document.getElementById('result-status').className = 'status-bar success';
+    document.getElementById('download-wrap').classList.remove('hidden');
+    document.getElementById('result-num').textContent   = '4';
+    document.getElementById('result-title').textContent = 'Download Ready';
+    stepDone(3); stepDone(4);
+  })
+  .catch(() => {
+    document.getElementById('result-status').textContent = '❌ Processing failed. Please try again.';
+    document.getElementById('result-status').className = 'status-bar error';
+    document.getElementById('process-btn').disabled = false;
+  });
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+function setStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  el.innerHTML = (type==='loading' ? '<div class="spinner"></div> ' : '') + msg;
+  el.className = 'status-bar' + (type ? ' '+type : '');
+}
+function stepActive(n) { document.getElementById('s'+n).classList.add('active'); }
+function stepDone(n)   { const s=document.getElementById('s'+n); s.classList.add('done'); s.querySelector('.step-num').textContent='✓'; }
+</script>
+</body>
+</html>

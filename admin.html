@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MIS Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#08080f; --sidebar:#0b0b18; --card:#0f0f1e; --card2:#0a0a15;
+    --border:#1e1e3a; --accent:#4f8ef7; --accent2:#7c3aed;
+    --green:#2ecc71; --red:#e74c3c; --yellow:#f39c12; --purple:#7c3aed;
+    --text:#e8eaf6; --sub:#6b7280; --font:'Space Grotesk',sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  body { background:var(--bg); font-family:var(--font); color:var(--text); min-height:100vh; }
+  nav { background:var(--sidebar); border-bottom:1px solid var(--border); padding:0 24px; height:60px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+  .nav-brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; }
+  .nav-icon { width:32px; height:32px; background:linear-gradient(135deg,var(--accent2),var(--accent)); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .nav-right { display:flex; align-items:center; gap:10px; }
+  .nav-btn { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:8px; padding:7px 14px; font-family:var(--font); font-size:13px; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px; transition:all .2s; }
+  .nav-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .admin-badge { background:rgba(124,58,237,.15); color:#a78bfa; border:1px solid rgba(124,58,237,.3); border-radius:20px; padding:4px 12px; font-size:12px; font-weight:600; }
+
+  main { max-width:960px; margin:0 auto; padding:32px 24px; }
+  h1 { font-size:22px; font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:10px; }
+  .page-sub { color:var(--sub); font-size:14px; margin-bottom:32px; }
+
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:28px; }
+  @media(max-width:640px){ .grid2{grid-template-columns:1fr;} main{padding:20px 16px;} }
+
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; }
+  .card-title { font-size:14px; font-weight:600; color:var(--sub); text-transform:uppercase; letter-spacing:.6px; margin-bottom:6px; }
+  .stat-val { font-size:32px; font-weight:700; }
+  .stat-val.green { color:var(--green); }
+  .stat-val.purple { color:#a78bfa; }
+
+  .section-title { font-size:15px; font-weight:600; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .danger-btn { background:rgba(231,76,60,.1); color:var(--red); border:1px solid rgba(231,76,60,.25); border-radius:8px; padding:6px 14px; font-family:var(--font); font-size:12px; cursor:pointer; transition:all .2s; text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
+  .danger-btn:hover { background:rgba(231,76,60,.2); }
+
+  /* Users table */
+  .users-table { width:100%; border-collapse:collapse; }
+  .users-table th { text-align:left; font-size:11px; font-weight:600; color:var(--sub); text-transform:uppercase; letter-spacing:.6px; padding:8px 12px; border-bottom:1px solid var(--border); }
+  .users-table td { padding:12px 12px; border-bottom:1px solid rgba(30,30,58,.5); font-size:14px; }
+  .users-table tr:last-child td { border-bottom:none; }
+  .role-badge { display:inline-flex; align-items:center; gap:5px; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:600; }
+  .role-badge.admin { background:rgba(124,58,237,.15); color:#a78bfa; border:1px solid rgba(124,58,237,.25); }
+  .role-badge.user  { background:rgba(79,142,247,.12); color:var(--accent); border:1px solid rgba(79,142,247,.2); }
+  .remove-btn { color:var(--red); background:none; border:none; cursor:pointer; font-size:13px; padding:4px 8px; border-radius:6px; transition:background .2s; }
+  .remove-btn:hover { background:rgba(231,76,60,.1); }
+
+  /* Add user form */
+  .add-form { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; padding-top:16px; border-top:1px solid var(--border); }
+  .add-form input, .add-form select {
+    background:var(--card2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:9px 14px; font-family:var(--font); font-size:13px; outline:none;
+    transition:border-color .2s; flex:1; min-width:120px;
+  }
+  .add-form input:focus, .add-form select:focus { border-color:var(--accent); }
+  .add-form select option { background:var(--card); }
+  .add-btn { background:linear-gradient(135deg,var(--accent2),var(--accent)); color:#fff; border:none; border-radius:8px; padding:9px 20px; font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .add-btn:hover { opacity:.9; }
+
+  /* Activity log */
+  .log-table { width:100%; border-collapse:collapse; }
+  .log-table th { text-align:left; font-size:11px; font-weight:600; color:var(--sub); text-transform:uppercase; letter-spacing:.6px; padding:8px 12px; border-bottom:1px solid var(--border); }
+  .log-table td { padding:10px 12px; border-bottom:1px solid rgba(30,30,58,.4); font-size:13px; }
+  .log-table tr:last-child td { border-bottom:none; }
+  .log-table td:first-child { font-family:var(--mono); font-size:11px; color:var(--sub); white-space:nowrap; }
+  .log-user { color:var(--accent); font-weight:600; }
+  .log-action { color:var(--text); }
+  .log-detail { color:var(--sub); font-size:12px; }
+  .action-login    { color:var(--green); }
+  .action-logout   { color:var(--sub); }
+  .action-process  { color:#a78bfa; }
+  .action-download { color:var(--yellow); }
+  .action-fail     { color:var(--red); }
+  .empty { text-align:center; color:var(--sub); padding:32px; font-size:14px; }
+
+  /* Flash */
+  .flash { background:rgba(243,156,18,.1); border:1px solid rgba(243,156,18,.3); border-radius:10px; padding:12px 16px; font-size:13px; color:var(--yellow); margin-bottom:20px; }
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-brand">
+    <div class="nav-icon">⚡</div>
+    <span>MIS Admin</span>
+  </div>
+  <div class="nav-right">
+    <span class="admin-badge">🛡 {{ username }}</span>
+    <a href="/dashboard" class="nav-btn">← Dashboard</a>
+    <a href="/logout" class="nav-btn">Sign Out</a>
+  </div>
+</nav>
+
+<main>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}{% for msg in messages %}<div class="flash">{{ msg }}</div>{% endfor %}{% endif %}
+  {% endwith %}
+
+  <h1>🛡 Admin Panel</h1>
+  <p class="page-sub">Manage users, view activity logs, and monitor usage.</p>
+
+  <!-- Stats -->
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Total Users</div>
+      <div class="stat-val purple">{{ users|length }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Activity Entries</div>
+      <div class="stat-val green">{{ logs|length }}</div>
+    </div>
+  </div>
+
+  <!-- Users management -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="section-title">
+      <span>👥 Users</span>
+    </div>
+    <table class="users-table">
+      <thead><tr><th>Username</th><th>Role</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td style="font-weight:600">{{ u.username }}</td>
+          <td><span class="role-badge {{ u.role }}">{{ u.role }}</span></td>
+          <td>
+            {% if u.username != username %}
+            <a href="/admin/remove-user/{{ u.username }}" class="remove-btn"
+               onclick="return confirm('Remove user {{ u.username }}?')">✕ Remove</a>
+            {% else %}
+            <span style="color:var(--sub);font-size:12px">You</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Add user -->
+    <form method="POST" action="/admin/add-user" class="add-form">
+      <input type="text" name="username" placeholder="New username" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <select name="role">
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button type="submit" class="add-btn">+ Add User</button>
+    </form>
+  </div>
+
+  <!-- Activity log -->
+  <div class="card">
+    <div class="section-title">
+      <span>📋 Activity Log</span>
+      <a href="/admin/clear-logs" class="danger-btn"
+         onclick="return confirm('Clear all logs?')">🗑 Clear Logs</a>
+    </div>
+    {% if logs %}
+    <div style="overflow-x:auto">
+    <table class="log-table">
+      <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th></tr></thead>
+      <tbody>
+        {% for entry in logs %}
+        <tr>
+          <td>{{ entry.time }}</td>
+          <td class="log-user">{{ entry.user }}</td>
+          <td class="log-action
+            {% if 'Login Failed' in entry.action %}action-fail
+            {% elif 'Login' in entry.action %}action-login
+            {% elif 'Logout' in entry.action %}action-logout
+            {% elif 'Process' in entry.action %}action-process
+            {% elif 'Download' in entry.action %}action-download
+            {% endif %}">{{ entry.action }}</td>
+          <td class="log-detail">{{ entry.detail }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty">No activity recorded yet.</div>
+    {% endif %}
+  </div>
+</main>
+</body>
+</html>
