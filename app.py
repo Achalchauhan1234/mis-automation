@@ -2,35 +2,26 @@
 ===============================================================
   MIS Excel Automation  —  Web App (Flask)
   Cloud-deployable | Login-protected | Mobile-friendly
-===============================================================
-  INSTALL:
-      pip install flask openpyxl
-  RUN LOCALLY:
-      python app.py
-  DEPLOY:
-      Push to GitHub → connect to Render.com (free tier)
+  v2 — fully in-memory (works on Render free tier)
 ===============================================================
 """
 
-import os, math, shutil, json
+import os, math, json, io
 from datetime import datetime
 from flask import (Flask, render_template, request, redirect,
                    url_for, session, send_file, flash, jsonify)
-from werkzeug.utils import secure_filename
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mis-secret-key-change-in-prod-2024")
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
-OUTPUT_FOLDER = os.path.join(os.path.dirname(__file__), "outputs")
-LOG_FILE      = os.path.join(os.path.dirname(__file__), "activity.json")
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+# In-memory stores (no disk needed)
+FILE_STORE   = {}   # username -> {"data": bytes, "name": str}
+OUTPUT_STORE = {}   # username -> {"data": bytes, "name": str}
+ACTIVITY_LOG = []   # list of log dicts (in memory)
 
 # ── Credentials ───────────────────────────────────────────────
-# Add more users here: "username": {"password": "xxx", "role": "user"/"admin"}
 USERS = {
     "achal13": {"password": "achal1331", "role": "admin"},
 }
@@ -48,10 +39,10 @@ def num_to_words_indian(n):
     tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety']
     def td(n): return ones[n] if n < 20 else tens[n//10]+(' '+ones[n%10] if n%10 else '')
     def thd(n): return (ones[n//100]+' Hundred'+(' '+td(n%100) if n%100 else '')) if n>=100 else td(n)
-    parts=[]
-    c=n//10000000; n%=10000000
-    l=n//100000;   n%=100000
-    t=n//1000;     n%=1000
+    parts = []
+    c = n//10000000; n %= 10000000
+    l = n//100000;   n %= 100000
+    t = n//1000;     n %= 1000
     if c: parts.append(thd(c)+' Crore')
     if l: parts.append(td(l)+' Lakh')
     if t: parts.append(td(t)+' Thousand')
@@ -63,20 +54,21 @@ def find_amount_columns(ws):
             'outstanding','bounce','penalty','received','interest','award','claim','sold']
     SKIP = ['in word','in words','date','name','no ','number','address',
             'status','remark','reason','url','email']
-    found=[]
+    found = []
     for cell in ws[1]:
         if not cell.value: continue
-        h=str(cell.value).strip(); hl=h.lower()
+        h = str(cell.value).strip(); hl = h.lower()
         if any(s in hl for s in SKIP): continue
         if any(k in hl for k in AMT):
             for r in range(2, min(ws.max_row+1, 6)):
-                v=ws.cell(row=r, column=cell.column).value
+                v = ws.cell(row=r, column=cell.column).value
                 if v is not None:
                     try: float(v); found.append((cell.column, h)); break
                     except: pass
     return found
 
-def process_excel(input_path, output_path, rules):
+def process_excel_bytes(input_bytes, rules):
+    """Process Excel from bytes, return output as bytes. No disk I/O."""
     af  = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     afo = Font(bold=True, color="276221", name="Calibri", size=10)
     wf  = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
@@ -85,8 +77,7 @@ def process_excel(input_path, output_path, rules):
     hfo = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
     ctr = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-    shutil.copy(input_path, output_path)
-    wb = load_workbook(output_path)
+    wb = load_workbook(io.BytesIO(input_bytes))
     for sn in wb.sheetnames:
         ws = wb[sn]
         matched = []
@@ -110,7 +101,8 @@ def process_excel(input_path, output_path, rules):
             if mode == "words":
                 ws.insert_cols(ci+1); wc = ci+1
                 wh = ws.cell(row=1, column=wc)
-                wh.value = cn.strip()+" in Word"; wh.fill = wf; wh.font = wfo; wh.alignment = ctr
+                wh.value = cn.strip()+" in Word"
+                wh.fill = wf; wh.font = wfo; wh.alignment = ctr
                 ws.column_dimensions[wh.column_letter].width = 50
                 for r in range(2, ws.max_row+1):
                     ac = ws.cell(row=r, column=ci); wcc = ws.cell(row=r, column=wc)
@@ -146,23 +138,22 @@ def process_excel(input_path, output_path, rules):
                 if rgb in ('00000000','FFFFFFFF',''):
                     cell.fill = hf; cell.font = hfo; cell.alignment = ctr
         ws.row_dimensions[1].height = 40
-    wb.save(output_path)
 
-# ── Activity log ──────────────────────────────────────────────
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return out.read()
+
+# ── Activity log (in-memory) ──────────────────────────────────
 def log_activity(user, action, detail=""):
-    logs = []
-    if os.path.exists(LOG_FILE):
-        try:
-            with open(LOG_FILE) as f: logs = json.load(f)
-        except: pass
-    logs.insert(0, {
-        "time": datetime.now().strftime("%d %b %Y  %H:%M:%S"),
-        "user": user,
+    ACTIVITY_LOG.insert(0, {
+        "time":   datetime.now().strftime("%d %b %Y  %H:%M:%S"),
+        "user":   user,
         "action": action,
         "detail": detail
     })
-    logs = logs[:200]  # keep last 200
-    with open(LOG_FILE, "w") as f: json.dump(logs, f)
+    if len(ACTIVITY_LOG) > 200:
+        ACTIVITY_LOG.pop()
 
 # ── Auth helpers ──────────────────────────────────────────────
 def current_user():
@@ -213,7 +204,10 @@ def login():
 @app.route("/logout")
 def logout():
     u = current_user()
-    if u: log_activity(u, "Logout", "")
+    if u:
+        log_activity(u, "Logout", "")
+        FILE_STORE.pop(u, None)
+        OUTPUT_STORE.pop(u, None)
     session.clear()
     return redirect(url_for("login"))
 
@@ -227,73 +221,73 @@ def dashboard():
 @app.route("/detect-columns", methods=["POST"])
 @require_login
 def detect_columns():
-    """Upload file, detect amount columns, return JSON list."""
     f = request.files.get("file")
     if not f or not f.filename.lower().endswith((".xlsx",".xls")):
         return jsonify({"error": "Please upload a valid .xlsx or .xls file."}), 400
-    fname   = secure_filename(f.filename)
-    fpath   = os.path.join(UPLOAD_FOLDER, f"{current_user()}_{fname}")
-    f.save(fpath)
-    session["upload_path"] = fpath
-    session["upload_name"] = fname
+
+    file_bytes = f.read()
+    fname      = f.filename
+    FILE_STORE[current_user()] = {"data": file_bytes, "name": fname}
+
     try:
-        wb = load_workbook(fpath, read_only=True, data_only=True)
-        ws = wb.active
+        wb   = load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+        ws   = wb.active
         cols = find_amount_columns(ws)
         wb.close()
-        return jsonify({"columns": [{"col": c, "name": n} for c,n in cols]})
+        return jsonify({"columns": [{"col": c, "name": n} for c, n in cols]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route("/process", methods=["POST"])
 @require_login
 def process():
-    """Process uploaded file with selected column rules."""
-    data   = request.json
-    rules  = data.get("rules", {})
-    fpath  = session.get("upload_path")
-    fname  = session.get("upload_name","output.xlsx")
-    if not fpath or not os.path.exists(fpath):
-        return jsonify({"error": "No file uploaded. Please upload first."}), 400
+    data  = request.json
+    rules = data.get("rules", {})
+    u     = current_user()
+    store = FILE_STORE.get(u)
+
+    if not store:
+        return jsonify({"error": "No file found. Please upload your file again."}), 400
     if not rules:
         return jsonify({"error": "No columns selected."}), 400
+
+    fname     = store["name"]
     name, ext = os.path.splitext(fname)
     out_name  = name + "_UPDATED" + ext
-    out_path  = os.path.join(OUTPUT_FOLDER, f"{current_user()}_{out_name}")
+
     try:
-        process_excel(fpath, out_path, rules)
-        session["output_path"] = out_path
-        session["output_name"] = out_name
-        log_activity(current_user(), "Processed File", fname)
+        out_bytes = process_excel_bytes(store["data"], rules)
+        OUTPUT_STORE[u] = {"data": out_bytes, "name": out_name}
+        log_activity(u, "Processed File", fname)
         return jsonify({"success": True, "filename": out_name})
     except Exception as e:
-        log_activity(current_user(), "Process Error", str(e))
+        log_activity(u, "Process Error", str(e))
         return jsonify({"error": str(e)}), 500
 
 @app.route("/download")
 @require_login
 def download():
-    out_path = session.get("output_path")
-    out_name = session.get("output_name","output_UPDATED.xlsx")
-    if not out_path or not os.path.exists(out_path):
+    u     = current_user()
+    store = OUTPUT_STORE.get(u)
+    if not store:
         flash("No processed file found. Please process a file first.")
         return redirect(url_for("dashboard"))
-    log_activity(current_user(), "Downloaded File", out_name)
-    return send_file(out_path, as_attachment=True, download_name=out_name)
+    log_activity(u, "Downloaded File", store["name"])
+    return send_file(
+        io.BytesIO(store["data"]),
+        as_attachment=True,
+        download_name=store["name"],
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 @app.route("/admin")
 @require_login
 @require_admin
 def admin():
-    logs = []
-    if os.path.exists(LOG_FILE):
-        try:
-            with open(LOG_FILE) as f: logs = json.load(f)
-        except: pass
     users_info = [{"username": u, "role": d["role"]} for u, d in USERS.items()]
     return render_template("admin.html",
                            username=current_user(),
-                           logs=logs,
+                           logs=ACTIVITY_LOG,
                            users=users_info)
 
 @app.route("/admin/add-user", methods=["POST"])
@@ -327,8 +321,7 @@ def remove_user(username):
 @require_login
 @require_admin
 def clear_logs():
-    if os.path.exists(LOG_FILE):
-        os.remove(LOG_FILE)
+    ACTIVITY_LOG.clear()
     log_activity(current_user(), "Cleared Logs", "")
     return redirect(url_for("admin"))
 
