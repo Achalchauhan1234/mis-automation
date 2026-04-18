@@ -49,6 +49,26 @@ def num_to_words_indian(n):
     if n: parts.append(thd(n))
     return ' '.join(parts)+' Rupees Only'
 
+def format_indian_number(n):
+    """Return Indian comma-formatted string e.g. 15,00,000 — used for mail-merge columns."""
+    if n is None or (isinstance(n, float) and math.isnan(n)):
+        return ""
+    n = int(round(float(n)))
+    if n == 0:
+        return "0"
+    is_neg = n < 0
+    n = abs(n)
+    s = str(n)
+    if len(s) <= 3:
+        result = s
+    else:
+        result = s[-3:]
+        s = s[:-3]
+        while s:
+            result = s[-2:] + "," + result
+            s = s[:-2]
+    return ("-" if is_neg else "") + result
+
 def find_amount_columns(ws):
     AMT  = ['amount','arrears','dpi','principal','overdue','disbursement',
             'outstanding','bounce','penalty','received','interest','award','claim','sold']
@@ -98,6 +118,28 @@ def process_excel_bytes(input_bytes, rules):
                         v = float(c.value)
                         if not math.isnan(v): c.number_format = IFMT
                     except: pass
+            # ── Mail-merge friendly column (plain text, Indian commas) ──
+            ws.insert_cols(ci+1)
+            mc = ci+1
+            mh = ws.cell(row=1, column=mc)
+            mh.value = cn.strip() + " (Formatted)"
+            mf_fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
+            mh.fill = mf_fill
+            mh.font = Font(bold=True, color="1F4E79", name="Calibri", size=10)
+            mh.alignment = ctr
+            ws.column_dimensions[mh.column_letter].width = 20
+            for r in range(2, ws.max_row+1):
+                ac  = ws.cell(row=r, column=ci)
+                mcc = ws.cell(row=r, column=mc)
+                if ac.value is not None:
+                    try:
+                        v = float(ac.value)
+                        if not math.isnan(v):
+                            mcc.value = format_indian_number(v)
+                            mcc.alignment = Alignment(horizontal='right', vertical='center')
+                    except:
+                        pass
+
             if mode == "words":
                 ws.insert_cols(ci+1); wc = ci+1
                 wh = ws.cell(row=1, column=wc)
