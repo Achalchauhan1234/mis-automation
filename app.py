@@ -296,7 +296,7 @@ def process_excel_bytes(input_bytes, rules):
     rgt  = Alignment(horizontal='right',   vertical='center')
     wrap = Alignment(wrap_text=True,       vertical='center')
 
-    wb = load_workbook(io.BytesIO(input_bytes))
+    wb = load_workbook(io.BytesIO(input_bytes), data_only=True)
 
     for sn in wb.sheetnames:
         ws = wb[sn]
@@ -317,6 +317,21 @@ def process_excel_bytes(input_bytes, rules):
         matched_sorted = sorted(matched, key=lambda x: x[0], reverse=True)
 
         for orig_ci, col_name, mode in matched_sorted:
+
+            # Guard: if every value in this column is unreadable (e.g. a
+            # formula with no cached result — file was never opened/saved
+            # in real Excel), fail with a clear message instead of
+            # silently skipping every row.
+            numeric_rows = sum(
+                1 for r in range(2, ws.max_row + 1)
+                if _safe_float(ws.cell(row=r, column=orig_ci).value) is not None
+            )
+            if numeric_rows == 0:
+                raise ValueError(
+                    f"Column '{col_name}' has no readable numeric values. "
+                    f"If this column contains formulas, please open the file "
+                    f"in Excel, let it recalculate, save it, and re-upload."
+                )
 
             # Detect whether this column ever has decimal values
             has_dec = _has_decimal(ws, orig_ci)
